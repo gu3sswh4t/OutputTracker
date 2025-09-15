@@ -9,15 +9,14 @@
         .container{background-color:#fff;padding:2rem;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);width:90%;max-width:500px}
         h1,h2{text-align:center;color:#0056b3;margin-bottom:1.5rem}
         h2{margin-top:2rem;font-size:1.2rem;border-top:1px solid #eee;padding-top:1.5rem}
+        h2 span{color:#6c757d;font-weight:400}
         label{display:block;margin-top:1rem;margin-bottom:.5rem;font-weight:600}
         input[type="text"],input[type="file"],input[type="date"],input[type="password"]{width:100%;padding:.75rem;border:1px solid #ccc;border-radius:4px;box-sizing:border-box}
         button{cursor:pointer;transition:background-color .2s}
         .btn{width:100%;padding:.75rem;margin-top:1.5rem;background-color:#007bff;color:#fff;border:none;border-radius:4px;font-size:1rem}
         .btn:hover{background-color:#0056b3}
         #status,.results-div,#loginStatus{margin-top:1.5rem;padding:1rem;background-color:#e9ecef;border-radius:4px;text-align:center}
-        .search-box{display:flex;gap:.5rem}
-        .search-box input{flex-grow:1}
-        .search-box .btn{margin-top:0;width:auto;padding:.75rem 1.5rem}
+        .search-box{margin-top:1.5rem}
         .results-div ul{list-style-type:none;padding:0;text-align:left}
         .results-div li{padding:.75rem .5rem;border-bottom:1px solid #ddd;display:flex;justify-content:space-between;align-items:center;gap:1rem}
         .results-div li span{word-break:break-all;flex-grow:1}
@@ -49,6 +48,7 @@
         </div>
 
         <div id="studentView" class="hidden">
+            <h2>Welcome, <span id="studentUsername"></span></h2>
             <h1>Submit Output</h1>
             <form id="uploadForm">
                 <label for="section">Section:</label>
@@ -62,20 +62,19 @@
             <div id="status"></div>
             <h2>Manage Previous Submissions</h2>
             <div class="search-box">
-                <input type="text" id="studentSearchInput" placeholder="Search your filename...">
-                <button id="studentSearchButton" class="btn">Search</button>
+                <input type="text" id="studentSearchInput" placeholder="Filter your files by name...">
             </div>
-            <div id="studentResultsDiv" class="results-div"><p>Search for your file to manage it.</p></div>
+            <div id="studentResultsDiv" class="results-div"><p>Your submitted files will appear here.</p></div>
             <button id="studentLogoutBtn" class="btn">Logout</button>
         </div>
 
         <div id="teacherView" class="hidden">
+            <h2>Welcome, <span id="teacherUsername"></span></h2>
             <h1>Search Student Submissions</h1>
             <div class="search-box">
-                <input type="text" id="teacherSearchInput" placeholder="Search by name, section...">
-                <button id="teacherSearchButton" class="btn">Search</button>
+                <input type="text" id="teacherSearchInput" placeholder="Filter files by name, section, etc...">
             </div>
-            <div id="teacherResultsDiv" class="results-div"><p>Enter a search term to find files.</p></div>
+            <div id="teacherResultsDiv" class="results-div"><p>All submitted files will appear here.</p></div>
             <button id="teacherLogoutBtn" class="btn">Logout</button>
         </div>
     </div>
@@ -86,6 +85,7 @@
         const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
 
         let session = { username: null, accessCode: null, role: null };
+        let currentFiles = [];
 
         const loginView = document.getElementById('loginView');
         const studentView = document.getElementById('studentView');
@@ -102,6 +102,7 @@
 
         function logout() {
             session = { username: null, accessCode: null, role: null };
+            currentFiles = [];
             document.querySelectorAll('form').forEach(form => form.reset());
             document.querySelectorAll('.results-div').forEach(div => div.innerHTML = '');
             showView('loginView');
@@ -124,9 +125,17 @@
             .then(data => {
                 if (data.status === 'success') {
                     session = { username, accessCode, role: data.role };
-                    if (data.role === 'student') showView('studentView');
-                    else if (data.role === 'teacher') showView('teacherView');
-                    else loginStatus.textContent = 'Error: Unknown role.';
+                    if (data.role === 'student') {
+                        document.getElementById('studentUsername').textContent = session.username;
+                        showView('studentView');
+                        performSearch('', document.getElementById('studentResultsDiv'), displayStudentResults);
+                    } else if (data.role === 'teacher') {
+                        document.getElementById('teacherUsername').textContent = session.username;
+                        showView('teacherView');
+                        performSearch('', document.getElementById('teacherResultsDiv'), displayTeacherResults);
+                    } else {
+                        loginStatus.textContent = 'Error: Unknown role.';
+                    }
                 } else {
                     loginStatus.textContent = `Error: ${data.message}`;
                 }
@@ -154,32 +163,42 @@
                 .then(res => res.json())
                 .then(data => {
                     statusDiv.innerHTML = data.status === 'success' ? `✅ Uploaded: <strong>${data.fileName}</strong>` : `❌ Error: ${data.message}`;
-                    if (data.status === 'success') uploadForm.reset();
+                    if (data.status === 'success') {
+                        uploadForm.reset();
+                        performSearch('', document.getElementById('studentResultsDiv'), displayStudentResults);
+                    }
                 }).catch(err => statusDiv.textContent = `Network Error: ${err.message}`);
             };
         });
 
         function performSearch(searchTerm, resultsContainer, displayFunction) {
-            if (!searchTerm) { resultsContainer.innerHTML = '<p>Please enter a search term.</p>'; return; }
-            resultsContainer.innerHTML = '<p>Searching...</p>';
+            resultsContainer.innerHTML = '<p>Loading files...</p>';
             const params = new URLSearchParams({ ...session, search: searchTerm });
             
             fetch(`${SCRIPT_URL}?${params.toString()}`)
             .then(res => res.json())
             .then(data => {
-                if (data.status === 'success') displayFunction(data.files, resultsContainer);
-                else resultsContainer.innerHTML = `<p>❌ Error: ${data.message}</p>`;
+                if (data.status === 'success') {
+                    currentFiles = data.files;
+                    displayFunction(currentFiles, resultsContainer);
+                } else {
+                    resultsContainer.innerHTML = `<p>❌ Error: ${data.message}</p>`;
+                }
             }).catch(err => resultsContainer.innerHTML = `<p>❌ Network Error: ${err.message}</p>`);
         }
-
-        document.getElementById('teacherSearchButton').addEventListener('click', () => {
-            performSearch(document.getElementById('teacherSearchInput').value.trim(), document.getElementById('teacherResultsDiv'), displayTeacherResults);
-        });
-
-        document.getElementById('studentSearchButton').addEventListener('click', () => {
-            performSearch(document.getElementById('studentSearchInput').value.trim(), document.getElementById('studentResultsDiv'), displayStudentResults);
+        
+        document.getElementById('teacherSearchInput').addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const filteredFiles = currentFiles.filter(file => file.name.toLowerCase().includes(searchTerm));
+            displayTeacherResults(filteredFiles, document.getElementById('teacherResultsDiv'));
         });
         
+        document.getElementById('studentSearchInput').addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const filteredFiles = currentFiles.filter(file => file.name.toLowerCase().includes(searchTerm));
+            displayStudentResults(filteredFiles, document.getElementById('studentResultsDiv'));
+        });
+
         function displayTeacherResults(files, container) {
             if (files.length === 0) { container.innerHTML = '<p>No files found.</p>'; return; }
             let html = '<ul>';
@@ -205,7 +224,7 @@
         document.getElementById('studentResultsDiv').addEventListener('click', function(e) {
             const target = e.target;
             const listItem = target.closest('li');
-            if (!listItem) return;
+if (!listItem) return;
 
             const fileId = listItem.dataset.fileId;
             const currentName = listItem.dataset.fileName;
@@ -218,9 +237,8 @@
                     .then(res => res.json())
                     .then(data => {
                         if (data.status === 'success') {
-                            listItem.dataset.fileName = data.newName;
-                            listItem.querySelector('span a').textContent = data.newName;
                             alert('File renamed!');
+                            performSearch('', document.getElementById('studentResultsDiv'), displayStudentResults);
                         } else alert(`Error: ${data.message}`);
                     }).catch(err => alert(`Network Error: ${err.message}`));
                 }
@@ -231,8 +249,8 @@
                     .then(res => res.json())
                     .then(data => {
                         if (data.status === 'success') {
-                            listItem.remove();
                             alert('File deleted.');
+                            listItem.remove();
                         } else alert(`Error: ${data.message}`);
                     }).catch(err => alert(`Network Error: ${err.message}`));
                 }

@@ -198,7 +198,7 @@
     </div>
 
     <script>
-        const SCRIPT_URL = 'YOUR_WEB_APP_URL_HERE';
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwnR_FVkEN03BJnFt035XhZGPLdz6JYEcUbPL6L1aZiNvERwHFu8Zh46U4GLh0LqPRa/exec';
         const MAX_SIZE_MB = 37.5;
         const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
 
@@ -240,7 +240,7 @@
                 return;
             }
             if (file.size > MAX_SIZE_BYTES) {
-                statusDiv.innerHTML = `❌ **Error:** File exceeds the size limit. Please choose a file smaller than ${MAX_SIZE_MB} MB.`;
+                statusDiv.innerHTML = `❌ File exceeds the size limit. Please choose a file smaller than ${MAX_SIZE_MB} MB. - Sir Joram`;
                 return;
             }
             statusDiv.innerHTML = 'Uploading... Please wait.';
@@ -365,3 +365,4 @@
     </script>
 </body>
 </html>
+

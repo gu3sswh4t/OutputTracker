@@ -14,6 +14,7 @@
             align-items: center;
             min-height: 100vh;
             margin: 0;
+            padding: 1rem;
         }
         .container {
             background-color: #fff;
@@ -62,12 +63,16 @@
             margin-bottom: 0.5rem;
             font-weight: 600;
         }
-        input[type="text"], input[type="file"] {
+        input[type="text"], input[type="file"], input[type="date"] {
             width: 100%;
             padding: 0.75rem;
             border: 1px solid #ccc;
             border-radius: 4px;
             box-sizing: border-box;
+        }
+        button {
+            cursor: pointer;
+            transition: background-color 0.2s;
         }
         button[type="submit"], #searchButton {
             width: 100%;
@@ -78,8 +83,6 @@
             border: none;
             border-radius: 4px;
             font-size: 1rem;
-            cursor: pointer;
-            transition: background-color 0.2s;
         }
         button[type="submit"]:hover, #searchButton:hover {
             background-color: #0056b3;
@@ -109,8 +112,16 @@
             text-align: left;
         }
         #results li {
-            padding: 0.5rem;
+            padding: 0.75rem 0.5rem;
             border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+        }
+        #results li span {
+            word-break: break-all;
+            flex-grow: 1;
         }
         #results li a {
             text-decoration: none;
@@ -118,6 +129,18 @@
         }
         #results li a:hover {
             text-decoration: underline;
+        }
+        .rename-btn {
+            padding: 0.3rem 0.6rem;
+            font-size: 0.8rem;
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+        .rename-btn:hover {
+            background-color: #5a6268;
         }
         .hidden {
             display: none;
@@ -128,21 +151,21 @@
     <div class="container">
         <div class="nav">
             <button id="showStudent" class="nav-button active">👩‍🎓 Student Upload</button>
-            <button id="showTeacher" class="nav-button">🧑‍🏫 Teacher Search</button>
+            <button id="showTeacher" class="nav-button">🧑‍🏫 Teacher Tools</button>
         </div>
 
         <div id="studentView">
             <h1>Submit Your Output</h1>
             <form id="uploadForm">
-                <label for="studentName">Full Name (LastName, FirstName):</label>
-                <input type="text" id="studentName" placeholder="e.g., Doe, John" required>
+                <label for="studentName">Full Name:</label>
+                <input type="text" id="studentName" placeholder="e.g., JohnDoe" required>
 
                 <label for="section">Section:</label>
-                <input type="text" id="section" placeholder="e.g., Grade 10 - Newton" required>
+                <input type="text" id="section" placeholder="e.g., Newton" required>
                 
-                <label for="outputName">Output Name:</label>
-                <input type="text" id="outputName" placeholder="e.g., Activity 1" required>
-
+                <label for="deadline">Deadline:</label>
+                <input type="date" id="deadline" required>
+                
                 <label for="fileInput">Select File:</label>
                 <input type="file" id="fileInput" required>
                 
@@ -152,9 +175,9 @@
         </div>
 
         <div id="teacherView" class="hidden">
-            <h1>Search Student Outputs</h1>
+            <h1>Search & Manage Outputs</h1>
             <div class="search-box">
-                <input type="text" id="searchInput" placeholder="Search by name, section, or output...">
+                <input type="text" id="searchInput" placeholder="Search by name, section...">
                 <button id="searchButton">Search</button>
             </div>
             <div id="results">
@@ -164,12 +187,20 @@
     </div>
 
     <script>
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyZcox16CknX6TQO1A3JR0duYMm5i49qQgedTM3cvpUZmPwbvgIwHOnmF-WQ3-o5bU/exec'; 
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwnR_FVkEN03BJnFt035XhZGPLdz6JYEcUbPL6L1aZiNvERwHFu8Zh46U4GLh0LqPRa/exec';
+        const MAX_SIZE_MB = 37.5;
+        const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
 
         const studentView = document.getElementById('studentView');
         const teacherView = document.getElementById('teacherView');
         const showStudentBtn = document.getElementById('showStudent');
         const showTeacherBtn = document.getElementById('showTeacher');
+        const uploadForm = document.getElementById('uploadForm');
+        const statusDiv = document.getElementById('status');
+        const fileInput = document.getElementById('fileInput');
+        const searchInput = document.getElementById('searchInput');
+        const searchButton = document.getElementById('searchButton');
+        const resultsDiv = document.getElementById('results');
 
         showStudentBtn.addEventListener('click', () => {
             studentView.classList.remove('hidden');
@@ -185,40 +216,36 @@
             showStudentBtn.classList.remove('active');
         });
 
-        const uploadForm = document.getElementById('uploadForm');
-        const statusDiv = document.getElementById('status');
-        const fileInput = document.getElementById('fileInput');
-
         uploadForm.addEventListener('submit', (e) => {
             e.preventDefault();
-            statusDiv.innerHTML = 'Uploading... Please wait.';
-            
             const file = fileInput.files[0];
             if (!file) {
                 statusDiv.innerHTML = 'Please select a file to upload.';
                 return;
             }
+            if (file.size > MAX_SIZE_BYTES) {
+                statusDiv.innerHTML = `❌ **Error:** File exceeds the size limit. Please choose a file smaller than ${MAX_SIZE_MB} MB.`;
+                return;
+            }
+            statusDiv.innerHTML = 'Uploading... Please wait.';
 
-            const studentName = document.getElementById('studentName').value.trim();
-            const section = document.getElementById('section').value.trim();
-            const outputName = document.getElementById('outputName').value.trim();
-            const originalExtension = file.name.split('.').pop();
-            const newFileName = `${section}_${studentName}_${outputName}.${originalExtension}`;
+            const studentName = document.getElementById('studentName').value.trim().replace(/\s+/g, '_');
+            const section = document.getElementById('section').value.trim().replace(/\s+/g, '_');
+            const deadline = document.getElementById('deadline').value;
+            const originalFileName = file.name;
+            const newFileName = `${studentName}_${section}_${deadline}_${originalFileName}`;
 
             const reader = new FileReader();
             reader.readAsDataURL(file);
             reader.onload = () => {
                 const fileData = reader.result;
                 const payload = {
+                    action: 'upload',
                     fileName: newFileName,
                     mimeType: file.type,
                     fileData: fileData
                 };
-
-                fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    body: JSON.stringify(payload)
-                })
+                fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) })
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success') {
@@ -234,31 +261,25 @@
             };
         });
 
-        const searchInput = document.getElementById('searchInput');
-        const searchButton = document.getElementById('searchButton');
-        const resultsDiv = document.getElementById('results');
-
         searchButton.addEventListener('click', () => {
             const searchTerm = searchInput.value.trim();
             if (!searchTerm) {
                 resultsDiv.innerHTML = '<p>Please enter a search term.</p>';
                 return;
             }
-
             resultsDiv.innerHTML = '<p>Searching...</p>';
-            
             fetch(`${SCRIPT_URL}?search=${encodeURIComponent(searchTerm)}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        displayResults(data.files);
-                    } else {
-                        resultsDiv.innerHTML = `<p>❌ Error: ${data.message}</p>`;
-                    }
-                })
-                .catch(error => {
-                    resultsDiv.innerHTML = `<p>❌ Network Error: ${error}</p>`;
-                });
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    displayResults(data.files);
+                } else {
+                    resultsDiv.innerHTML = `<p>❌ Error: ${data.message}</p>`;
+                }
+            })
+            .catch(error => {
+                resultsDiv.innerHTML = `<p>❌ Network Error: ${error}</p>`;
+            });
         });
 
         function displayResults(files) {
@@ -266,16 +287,47 @@
                 resultsDiv.innerHTML = '<p>No files found matching your search.</p>';
                 return;
             }
-
             let html = '<ul>';
             files.forEach(file => {
-                html += `<li><a href="${file.url}" target="_blank">${file.name}</a></li>`;
+                html += `<li data-file-id="${file.id}" data-file-name="${file.name}">
+                            <span><a href="${file.url}" target="_blank">${file.name}</a></span>
+                            <button class="rename-btn">Rename</button>
+                         </li>`;
             });
             html += '</ul>';
-            
             resultsDiv.innerHTML = html;
         }
+
+        resultsDiv.addEventListener('click', function(e) {
+            if (e.target && e.target.classList.contains('rename-btn')) {
+                const listItem = e.target.closest('li');
+                const fileId = listItem.dataset.fileId;
+                const currentName = listItem.dataset.fileName;
+                const newName = prompt("Enter the new file name:", currentName);
+
+                if (newName && newName.trim() !== '' && newName !== currentName) {
+                    const payload = {
+                        action: 'rename',
+                        fileId: fileId,
+                        newName: newName.trim()
+                    };
+                    fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            listItem.dataset.fileName = data.newName;
+                            listItem.querySelector('span a').textContent = data.newName;
+                            alert('File renamed successfully!');
+                        } else {
+                            alert(`Error renaming file: ${data.message}`);
+                        }
+                    })
+                    .catch(error => {
+                        alert(`Network error: ${error}`);
+                    });
+                }
+            }
+        });
     </script>
 </body>
 </html>
-
